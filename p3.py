@@ -1,10 +1,10 @@
 # Import libraries
-from _typeshed import Self
 import RPi.GPIO as GPIO
 import random
 import ES2EEPROMUtils
 import os
 import time
+# from __future__ import division
 
 # some global variables that need to change as we run the program
 end_of_game = None  # set if the user wins or ends the game
@@ -19,6 +19,8 @@ eeprom = ES2EEPROMUtils.ES2EEPROM()
 freq = 1
 dc = 0.5
 score = 0
+pwm = None
+LED_A= None
 
 
 # Print the game banner
@@ -68,6 +70,8 @@ def display_scores(count, raw_data):
 
 # Setup Pins
 def setup():
+    global pwm
+    global LED_A
     # Setup board mode
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
@@ -79,18 +83,16 @@ def setup():
     GPIO.setup(LED_accuracy,GPIO.OUT)
     GPIO.setup(buzzer,GPIO.OUT)
 
-    # GPIO.setup(btn_increase,GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    # GPIO.setup(btn_increase, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-# breaks code for some reason???
-    # GPIO.setup(btn_increase,GPIO.IN)
-    # GPIO.setup(btn_submit,GPIO.IN)
+    GPIO.setup(btn_increase,GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(btn_submit, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     
     # Setup PWM channels
-    ##WHEN TRY TO SETUP PWM HERE, NO EFFECT ON MAIN
-
+    pwm = GPIO.PWM(buzzer,1)
+    LED_A = GPIO.PWM(LED_accuracy,100)
+ 
     # Setup debouncing and callbacks
-    # GPIO.add_event_detect(btn_increase, GPIO.RISING, callback=btn_increase_pressed, bouncetime=20)
-    # GPIO.add_event_detect(btn_submit, GPIO.RISING, callback=btn_guess_pressed, bouncetime=20)
+    GPIO.add_event_detect(btn_increase, GPIO.FALLING, callback=btn_increase_pressed, bouncetime=200)
+    GPIO.add_event_detect(btn_submit, GPIO.FALLING, callback=btn_guess_pressed, bouncetime=200)
     pass
 
 
@@ -99,7 +101,9 @@ def fetch_scores():
     # get however many scores there are
     score_count = eeprom.read 
     # Get the scores
-    eeprom.read_block(Self, 0, 32, 32)
+
+    # eeprom.read_block(Self, 0, 32, 32)
+
     # convert the codes back to ascii
     
     # return back the results
@@ -153,12 +157,15 @@ def accuracy_leds(guess, answer):
     # - The % brightness should be directly proportional to the % "closeness"
     # - For example if the answer is 6 and a user guesses 4, the brightness should be at 4/6*100 = 66%
     # - If they guessed 7, the brightness would be at ((8-7)/(8-6)*100 = 50%
-    LED_A = GPIO.PWM(LED_accuracy,60)
+    # - max guess is 8
+    global LED_A
     if guess < answer: 
-        LED_A.start(100*(answer-guess))
-    else:
-        LED_A.start(100*(1))
-    # I don't understand the algorith???
+        LED_A.start(guess/answer)
+        print(guess/answer)
+        print(str(guess)+" "+str(answer))
+    if guess > answer:
+        LED_A.start((100*(8-guess)/(8-answer)))
+        print((8-guess)/(8-answer))
     pass
 
 # Sound Buzzer
@@ -169,14 +176,17 @@ def trigger_buzzer(answer,guess):
     # If the user is off by an absolute value of 3, the buzzer should sound once every second
     # If the user is off by an absolute value of 2, the buzzer should sound twice every second
     # If the user is off by an absolute value of 1, the buzzer should sound 4 times a second
-    pwm = GPIO.PWM(buzzer,0)
+    global pwm
     if abs(answer-guess)==3:
-        pwm = GPIO.PWM(buzzer,1)
+        pwm.ChangeFrequency(1)
+        pwm.start(0.5)
     if abs(answer-guess)==2:
-        pwm = GPIO.PWM(buzzer,2)
+        pwm.ChangeFrequency(2)
+        pwm.start(0.5)
     if abs(answer-guess)==1:
-        pwm = GPIO.PWM(buzzer,4)    
-    pwm.start(dc)
+        pwm.ChangeFrequency(4)
+        pwm.start(0.5)   
+    pwm.start(0.5)  
     pass
 
 
@@ -185,14 +195,10 @@ if __name__ == "__main__":
         # Call setup function
         setup()
         welcome()
-        # pwm = GPIO.PWM(buzzer,freq)
-        # pwm.start(dc)
-        print(GPIO.input(btn_increase))
-
+        # trigger_buzzer(3,4)
+        # accuracy_leds(7,8)
         while True:
             menu()
-            # print(GPIO.input(btn_increase))
-            # time.sleep(1)
             pass
     except Exception as e:
         print(e)
