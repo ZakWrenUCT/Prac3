@@ -47,6 +47,7 @@ def welcome():
 def menu():
     global end_of_game
     global answer
+    global userScore
     option = input("Select an option:   H - View High Scores     P - Play Game       Q - Quit\n")
     option = option.upper()
     if option == "H":
@@ -60,9 +61,9 @@ def menu():
         print("Use the buttons on the Pi to make and submit your guess!")
         print("Press and hold the guess button to cancel your game")
         answer = generate_number()
-        end_of_game=False
-        answer = generate_number()
+        userScore=0
         guess = None
+        end_of_game=False
         while not end_of_game:
             pass
     elif option == "Q":
@@ -95,13 +96,12 @@ def reset():
     global end_of_game
     userScore=0
     guess = None
-    answer=None
     end_of_game=True
-    for i in range(len(LED_value)):
-         GPIO.output(LED_value[i],GPIO.LOW)
+    os.system('clear')
     pwm.stop()
     LED_A.stop()
-    menu()
+    # GPIO.cleanup()
+    # setup()
 
 # Setup Pins
 def setup():
@@ -131,7 +131,7 @@ def setup():
 
     # Setup debouncing and callbacks
     GPIO.add_event_detect(btn_increase, GPIO.FALLING, callback=btn_increase_pressed, bouncetime=200)
-    GPIO.add_event_detect(btn_submit, GPIO.FALLING, callback=btn_guess_pressed, bouncetime=200)
+    GPIO.add_event_detect(btn_submit, GPIO.FALLING, callback=btn_guess_pressed, bouncetime=499)
     pass
 
 
@@ -241,15 +241,16 @@ def btn_guess_pressed(channel):
     global userScore
     global end_of_game
     global score
-    if end_of_game  ==False:
+    if end_of_game  == False:
         while GPIO.input(btn_submit) == GPIO.LOW:
             time.sleep(0.5)
             if GPIO.input(btn_submit) == GPIO.LOW:
-                reset()
+                end_of_game = True
+                pass
     # if no
         if guess == None:
             pass
-        elif guess == answer:
+        elif guess == answer and not end_of_game:
             end_of_game = True
             for i in range(len(LED_value)):
                 GPIO.output(LED_value[i],GPIO.LOW)
@@ -260,9 +261,10 @@ def btn_guess_pressed(channel):
             name = input("Name: ")
             name = name[:3].upper()
             save_scores(name,userScore)
-        else:
+        elif not end_of_game:
             accuracy_leds(guess, answer)
             trigger_buzzer(guess, answer)
+            print("TRY AGAIN")
             userScore+=1
 
     # If they've pressed and held the button, clear up the GPIO and take them back to the menu screen
@@ -290,7 +292,7 @@ def accuracy_leds(guess, answer):
     LED_A.stop()
     if guess < answer: 
         LED_A.start(guess/answer)
-        print(guess/answer)
+        # print(guess/answer)
     if guess > answer:
         LED_A.start((8-guess)/(8-answer))
     pass
@@ -322,8 +324,8 @@ if __name__ == "__main__":
         # Call setup function
         setup()
         welcome()
-        # eeprom.clear(64)
-        # eeprom.populate_mock_scores()
+        eeprom.clear(64)
+        eeprom.populate_mock_scores()
         while True:
             menu()
             pass
